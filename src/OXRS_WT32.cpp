@@ -40,7 +40,7 @@ MqttLogger _logger(_mqttClient, "log", MqttLoggerMode::MqttAndSerial);
 
 // Supported firmware config and command schemas
 DynamicJsonDocument _fwConfigSchema(4096);
-DynamicJsonDocument _fwCommandSchema(2048);
+DynamicJsonDocument _fwCommandSchema(4096);
 
 // MQTT callbacks wrapped by _mqttConfig/_mqttCommand
 jsonCallback _onConfig;
