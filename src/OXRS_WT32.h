@@ -40,6 +40,10 @@ public:
   void setConfigSchema(JsonVariant json);
   void setCommandSchema(JsonVariant json);
 
+  // Helpers for registering custom REST API endpoints
+  void apiGet(const char * path, Router::Middleware * middleware);
+  void apiPost(const char * path, Router::Middleware * middleware);
+
   // Helpers for publishing to stat/ and tele/ topics
   boolean publishStatus(JsonVariant json);
   boolean publishTelemetry(JsonVariant json);
