@@ -17,6 +17,9 @@ setMqttTopicSuffix	KEYWORD2
 setConfigSchema		KEYWORD2
 setCommandSchema	KEYWORD2
 
+apiGet			KEYWORD2
+apiPost			KEYWORD2
+
 begin			KEYWORD2
 loop			KEYWORD2
 
