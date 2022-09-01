@@ -153,6 +153,11 @@ void _getCommandSchemaJson(JsonVariant json)
   {
     _mergeJson(properties, _fwCommandSchema.as<JsonVariant>());
   }
+
+  // Restart command
+  JsonObject restart = properties.createNestedObject("restart");
+  restart["title"] = "Restart";
+  restart["type"] = "boolean";
 }
 
 /* API callbacks */
@@ -229,6 +234,12 @@ void _mqttConfig(JsonVariant json)
 
 void _mqttCommand(JsonVariant json)
 {
+  // Core restart command
+  if (json.containsKey("restart") && json["restart"].as<bool>())
+  {
+    ESP.restart();
+  }
+
   // Pass on to the firmware callback
   if (_onCommand)
   {
