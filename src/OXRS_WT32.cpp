@@ -451,9 +451,9 @@ void OXRS_WT32::_initialiseNetwork(byte * mac)
   // to handle WiFi connection and credential persistence etc.
   WiFiManager wm;
 
-  // If captive portal is launched and nothing happens for a while then
-  // exit autoConnect() and continue loading the firmware - if the user
-  // needs to retry they can restart the device via the settings page
+  // If the captive portal is launched and nothing happens for a while then
+  // reboot - this helps if we come online before an AP (e.g. power outage)
+  // and prevents us sitting in captive portal mode indefinitely
   wm.setConfigPortalTimeout(WM_CONFIG_PORTAL_TIMEOUT_S);
 
   // Connect using saved creds, or start captive portal if none found
