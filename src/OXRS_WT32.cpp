@@ -457,8 +457,8 @@ void OXRS_WT32::_initialiseNetwork(byte * mac)
   WiFiManager wm;
   if (!wm.autoConnect("OXRS_WiFi", "superhouse"))
   {
-    _logger.println(F("[wt32] failed to connect to wifi acces point"));
-    return;
+    _logger.println(F("[wt32] failed to connect to wifi access point, rebooting"));
+    ESP.restart();
   }
   
   IPAddress ipAddress = WiFi.localIP();
