@@ -447,6 +447,10 @@ void OXRS_WT32::_initialiseNetwork(byte * mac)
   // Ensure we are in the correct WiFi mode
   WiFi.mode(WIFI_STA);
 
+  // We use WifiManager library from https://github.com/tzapu/WiFiManager
+  // to handle WiFi connection and credential persistence etc.
+  WiFiManager wm;
+
   // If captive portal is launched and nothing happens for a while then
   // exit autoConnect() and continue loading the firmware - if the user
   // needs to retry they can restart the device via the settings page
@@ -454,7 +458,6 @@ void OXRS_WT32::_initialiseNetwork(byte * mac)
 
   // Connect using saved creds, or start captive portal if none found
   // NOTE: Blocks until connected or the portal is closed
-  WiFiManager wm;
   if (!wm.autoConnect("OXRS_WiFi", "superhouse"))
   {
     _logger.println(F("[wt32] failed to connect to wifi access point, rebooting"));
