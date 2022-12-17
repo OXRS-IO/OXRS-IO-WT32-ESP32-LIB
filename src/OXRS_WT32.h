@@ -8,16 +8,19 @@
 #include <OXRS_MQTT.h>    // For MQTT pub/sub
 #include <OXRS_API.h>     // For REST API
 
+// WifiManager
+#define WM_CONFIG_PORTAL_TIMEOUT_S  300
+
 // Ethernet
-#define DHCP_TIMEOUT_MS           15000
-#define DHCP_RESPONSE_TIMEOUT_MS  4000
+#define DHCP_TIMEOUT_MS             15000
+#define DHCP_RESPONSE_TIMEOUT_MS    4000
 
 // REST API
-#define REST_API_PORT             80
+#define REST_API_PORT               80
 
 // Screen dimensions
-#define WT32_SCREEN_WIDTH         320
-#define WT32_SCREEN_HEIGHT        480
+#define WT32_SCREEN_WIDTH           320
+#define WT32_SCREEN_HEIGHT          480
 
 // Enum for the different connection states
 enum connectionState_t { CONNECTED_NONE, CONNECTED_IP, CONNECTED_MQTT };
