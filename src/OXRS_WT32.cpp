@@ -8,6 +8,7 @@
 #include <Ethernet.h>     // For networking
 #include <WiFi.h>         // Required for Ethernet to get MAC
 #include <MqttLogger.h>   // For logging
+#include <LittleFS.h>     // For file system access
 
 #if defined(WIFI_MODE)
 #include <WiFiManager.h>  // For WiFi AP config
@@ -39,8 +40,8 @@ OXRS_API _api(_mqtt);
 MqttLogger _logger(_mqttClient, "log", MqttLoggerMode::MqttAndSerial);
 
 // Supported firmware config and command schemas
-DynamicJsonDocument _fwConfigSchema(8192);
-DynamicJsonDocument _fwCommandSchema(8192);
+DynamicJsonDocument _fwConfigSchema(JSON_CONFIG_MAX_SIZE);
+DynamicJsonDocument _fwCommandSchema(JSON_CONFIG_MAX_SIZE);
 
 // MQTT callbacks wrapped by _mqttConfig/_mqttCommand
 jsonCallback _onConfig;
@@ -49,11 +50,18 @@ jsonCallback _onCommand;
 /* JSON helpers */
 void _mergeJson(JsonVariant dst, JsonVariantConst src)
 {
-  if (src.is<JsonObject>())
+  if (src.is<JsonObjectConst>())
   {
-    for (auto kvp : src.as<JsonObjectConst>())
+    for (JsonPairConst kvp : src.as<JsonObjectConst>())
     {
-      _mergeJson(dst.getOrAddMember(kvp.key()), kvp.value());
+      if (dst[kvp.key()])
+      {
+        _mergeJson(dst[kvp.key()], kvp.value());
+      }
+      else
+      {
+        dst[kvp.key()] = kvp.value();
+      }
     }
   }
   else
@@ -89,8 +97,8 @@ void _getSystemJson(JsonVariant json)
   system["sketchSpaceUsedBytes"] = ESP.getSketchSize();
   system["sketchSpaceTotalBytes"] = ESP.getFreeSketchSpace();
 
-  system["fileSystemUsedBytes"] = SPIFFS.usedBytes();
-  system["fileSystemTotalBytes"] = SPIFFS.totalBytes();
+  system["fileSystemUsedBytes"] = LittleFS.usedBytes();
+  system["fileSystemTotalBytes"] = LittleFS.totalBytes();
 
   system["availablePsRamBytes"] = ESP.getPsramSize();
   system["freePsRamBytes"] = ESP.getFreePsram();
