@@ -78,7 +78,15 @@ void _getFirmwareJson(JsonVariant json)
   firmware["name"] = FW_NAME;
   firmware["shortName"] = FW_SHORT_NAME;
   firmware["maker"] = FW_MAKER;
+#if defined(FW_VERSION)
   firmware["version"] = STRINGIFY(FW_VERSION);
+#elif defined(BUILD_TIMESTAMP)
+  char buffer[40];
+  time_t rawtime = BUILD_TIMESTAMP;
+  struct tm ts = *localtime(&rawtime);
+  strftime(buffer, sizeof(buffer), "Build: %Y-%m-%d %H:%M:%S %Z", &ts);
+  firmware["version"] = buffer;
+#endif
 #if defined(FW_HARDWARE)
   firmware["hardware"] = STRINGIFY(FW_HARDWARE);
 #endif
