@@ -47,6 +47,9 @@ DynamicJsonDocument _fwCommandSchema(JSON_CONFIG_MAX_SIZE);
 jsonCallback _onConfig;
 jsonCallback _onCommand;
 
+// local variables
+char _fwVersion[40] = "";
+
 /* JSON helpers */
 void _mergeJson(JsonVariant dst, JsonVariantConst src)
 {
@@ -78,15 +81,7 @@ void _getFirmwareJson(JsonVariant json)
   firmware["name"] = FW_NAME;
   firmware["shortName"] = FW_SHORT_NAME;
   firmware["maker"] = FW_MAKER;
-#if defined(FW_VERSION)
-  firmware["version"] = STRINGIFY(FW_VERSION);
-#elif defined(BUILD_TIMESTAMP)
-  char buffer[40];
-  time_t rawtime = BUILD_TIMESTAMP;
-  struct tm ts = *localtime(&rawtime);
-  strftime(buffer, sizeof(buffer), "Build: %Y-%m-%d %H:%M:%S %Z", &ts);
-  firmware["version"] = buffer;
-#endif
+  firmware["version"] = _fwVersion;
 #if defined(FW_HARDWARE)
   firmware["hardware"] = STRINGIFY(FW_HARDWARE);
 #endif
@@ -594,4 +589,9 @@ void OXRS_WT32::getMQTTTopicTxt(char *buffer)
     strcpy(buffer, "");
     strncat(buffer, topic, 39);
   }
+}
+
+void OXRS_WT32::setFwVersion(const char *version)
+{
+  strncpy(_fwVersion, version, sizeof(_fwVersion));
 }
