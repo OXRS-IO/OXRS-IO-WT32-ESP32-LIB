@@ -18,10 +18,6 @@
 // REST API
 #define REST_API_PORT               80
 
-// Screen dimensions
-#define WT32_SCREEN_WIDTH           320
-#define WT32_SCREEN_HEIGHT          480
-
 // Enum for the different connection states
 enum connectionState_t { CONNECTED_NONE, CONNECTED_IP, CONNECTED_MQTT };
 
@@ -38,6 +34,10 @@ public:
 
   void begin(jsonCallback config, jsonCallback command);
   void loop(void);
+
+  // Firmware sets the value (string) of "version":<value> in adopt payload
+  // depending on buildflags that are evaluated in main as single source
+  void setFwVersion(const char *version);
 
   // Firmware can define the config/commands it supports - for device discovery and adoption
   void setConfigSchema(JsonVariant json);
