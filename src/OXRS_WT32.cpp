@@ -48,7 +48,7 @@ jsonCallback _onConfig;
 jsonCallback _onCommand;
 
 // local variables
-char _fwVersion[40] = "";
+char _fwVersion[40] = "<No Version>";
 
 /* JSON helpers */
 void _mergeJson(JsonVariant dst, JsonVariantConst src)

@@ -35,6 +35,8 @@ public:
   void begin(jsonCallback config, jsonCallback command);
   void loop(void);
 
+  // Firmware sets the value (string) of "version":<value> in adopt payload
+  // depending on buildflags that are evaluated in main as single source
   void setFwVersion(const char *version);
 
   // Firmware can define the config/commands it supports - for device discovery and adoption
