@@ -31,8 +31,8 @@ getIPAddressTxt		KEYWORD2
 getMACAddressTxt	KEYWORD2
 getMQTTTopicTxt		KEYWORD2
 
-getClimate		      KEYWORD2
-getClimateUpdated		KEYWORD2
+getClimate		KEYWORD2
+getClimateUpdated       KEYWORD2
 
 #######################################
 # Constants (LITERAL1)
