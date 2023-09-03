@@ -18,6 +18,9 @@
 // REST API
 #define REST_API_PORT               80
 
+// Climate sensor update internal
+#define DEFAULT_CLIMATE_UPDATE_MS   60000L
+
 // Enum for the different connection states
 enum connectionState_t { CONNECTED_NONE, CONNECTED_IP, CONNECTED_MQTT };
 
@@ -44,8 +47,8 @@ public:
   void setCommandSchema(JsonVariant json);
 
   // Helpers for registering custom REST API endpoints
-  void apiGet(const char * path, Router::Middleware * middleware);
-  void apiPost(const char * path, Router::Middleware * middleware);
+  void apiGet(const char *path, Router::Middleware *middleware);
+  void apiPost(const char *path, Router::Middleware *middleware);
 
   // Helpers for publishing to stat/ and tele/ topics
   boolean publishStatus(JsonVariant json);
@@ -61,12 +64,24 @@ public:
   virtual size_t write(uint8_t);
   using Print::write;
 
+  // get climate sensor values
+  bool getClimate(float *temperature, float *humidity);
+  bool getClimateUpdated(void);
+
 private:
   void _initialiseNetwork(byte *mac);
   void _initialiseMqtt(byte *mac);
   void _initialiseRestApi(void);
 
+  void _initialiseClimateSensor(void);
+  void _updateClimateSensor(void);
+
   boolean _isNetworkConnected(void);
+
+  uint32_t _lastClimateUpdate;
+  double _temperature = NAN;
+  double _humidity = NAN;
+  boolean _climateUpdated = false;
 };
 
 #endif
