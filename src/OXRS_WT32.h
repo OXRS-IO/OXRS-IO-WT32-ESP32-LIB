@@ -24,6 +24,9 @@
 // Enum for the different connection states
 enum connectionState_t { CONNECTED_NONE, CONNECTED_IP, CONNECTED_MQTT };
 
+// callback to signal upstream climate values have changed
+typedef void (*climateUpdateCallback)(void);
+
 class OXRS_WT32 : public Print
 {
 public:
@@ -35,7 +38,7 @@ public:
   void setMqttTopicPrefix(const char *prefix);
   void setMqttTopicSuffix(const char *suffix);
 
-  void begin(jsonCallback config, jsonCallback command);
+  void begin(jsonCallback config, jsonCallback command, climateUpdateCallback climateUpdate);
   void loop(void);
 
   // Firmware sets the value (string) of "version":<value> in adopt payload
@@ -65,8 +68,7 @@ public:
   using Print::write;
 
   // get climate sensor values
-  bool getClimate(float *temperature, float *humidity);
-  bool getClimateUpdated(void);
+  boolean getClimate(float *temperature, float *humidity);
 
 private:
   void _initialiseNetwork(byte *mac);
@@ -78,10 +80,7 @@ private:
 
   boolean _isNetworkConnected(void);
 
-  uint32_t _lastClimateUpdate;
-  double _temperature = NAN;
-  double _humidity = NAN;
-  boolean _climateUpdated = false;
+  uint32_t _lastClimateUpdate = 0L;
 };
 
 #endif

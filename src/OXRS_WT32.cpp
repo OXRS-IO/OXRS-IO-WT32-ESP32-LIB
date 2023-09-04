@@ -55,11 +55,18 @@ char _fwVersion[40] = "<No Version>";
 // SHT20 climate sensor
 SHT2x sht;
 
+// call back to update climate values on screen
+climateUpdateCallback _onClimateUpdate;
+
 // Climate update interval - extend or disable climate updates via
 // the MQTT config option "climateUpdateSeconds" - zero to disable
 uint32_t _climateUpdateMs = DEFAULT_CLIMATE_UPDATE_MS;
+
 bool _climateSensorFound = false;
-bool _climateUpdateIntervallChanged = false;
+
+// most recent climate data
+double _temperature = NAN;
+double _humidity = NAN;
 
 /* JSON helpers */
 void _mergeJson(JsonVariant dst, JsonVariantConst src)
@@ -264,7 +271,15 @@ void _mqttConfig(JsonVariant json)
   if (json.containsKey("climateUpdateSeconds"))
   {
     _climateUpdateMs = json["climateUpdateSeconds"].as<uint32_t>() * 1000L;
-    _climateUpdateIntervallChanged = true;
+    if (_climateUpdateMs == 0)
+    {
+      _temperature = NAN;
+      _humidity = NAN;
+      if (_onClimateUpdate)
+      {
+        _onClimateUpdate();
+      }
+    }
   }
 
   // Pass on to the firmware callback
@@ -336,7 +351,7 @@ void OXRS_WT32::setMqttTopicSuffix(const char *suffix)
   _mqtt.setTopicSuffix(suffix);
 }
 
-void OXRS_WT32::begin(jsonCallback config, jsonCallback command)
+void OXRS_WT32::begin(jsonCallback config, jsonCallback command, climateUpdateCallback climateUpdate)
 {
   // Get our firmware details
   DynamicJsonDocument json(128);
@@ -360,6 +375,9 @@ void OXRS_WT32::begin(jsonCallback config, jsonCallback command)
 
   // Set up the REST API
   _initialiseRestApi();
+
+  // upstream callback
+  _onClimateUpdate = climateUpdate;
 
   // Set up the climate sensor
   _initialiseClimateSensor();
@@ -604,43 +622,24 @@ void OXRS_WT32::_updateClimateSensor(void)
     json["humidity"] = _humidity;
     publishTelemetry(json.as<JsonVariant>());
 
+    // update screen
+    if (_onClimateUpdate)
+    {
+      _onClimateUpdate();
+    }
+
     // Reset our timer
     _lastClimateUpdate = millis();
-    _climateUpdated = true;
   }
 }
 
 // get climate sensor values
 bool OXRS_WT32::getClimate(float *temperature, float *humidity)
 {
-  *temperature = _temperature;
-  *humidity = _humidity;
+  *temperature = (float)_temperature;
+  *humidity = (float)_humidity;
 
-  _climateUpdated = false;
   return (isnan(_temperature) || isnan(_humidity)) == false;
-}
-
-// return the update status
-bool OXRS_WT32::getClimateUpdated(void)
-{
-  // ensure settings screen update after updateintervall was changed
-  if (_climateUpdateIntervallChanged)
-  {
-    if (_climateUpdateMs == 0L)
-    {
-      // invalidate stored values
-      _temperature = NAN;
-      _humidity = NAN;
-      _climateUpdated = true;
-    }
-    else
-    {
-      _lastClimateUpdate = millis() -_climateUpdateMs;
-    }
-    _climateUpdateIntervallChanged = false;
-  }
-
-  return _climateUpdated;
 }
 
 boolean OXRS_WT32::_isNetworkConnected(void)
