@@ -18,8 +18,14 @@
 // REST API
 #define REST_API_PORT               80
 
+// Climate sensor update internal
+#define DEFAULT_CLIMATE_UPDATE_MS   60000L
+
 // Enum for the different connection states
 enum connectionState_t { CONNECTED_NONE, CONNECTED_IP, CONNECTED_MQTT };
+
+// callback to signal upstream climate values have changed
+typedef void (*climateUpdateCallback)(void);
 
 class OXRS_WT32 : public Print
 {
@@ -32,7 +38,7 @@ public:
   void setMqttTopicPrefix(const char *prefix);
   void setMqttTopicSuffix(const char *suffix);
 
-  void begin(jsonCallback config, jsonCallback command);
+  void begin(jsonCallback config, jsonCallback command, climateUpdateCallback climateUpdate);
   void loop(void);
 
   // Firmware sets the value (string) of "version":<value> in adopt payload
@@ -44,8 +50,8 @@ public:
   void setCommandSchema(JsonVariant json);
 
   // Helpers for registering custom REST API endpoints
-  void apiGet(const char * path, Router::Middleware * middleware);
-  void apiPost(const char * path, Router::Middleware * middleware);
+  void apiGet(const char *path, Router::Middleware *middleware);
+  void apiPost(const char *path, Router::Middleware *middleware);
 
   // Helpers for publishing to stat/ and tele/ topics
   boolean publishStatus(JsonVariant json);
@@ -61,12 +67,20 @@ public:
   virtual size_t write(uint8_t);
   using Print::write;
 
+  // get climate sensor values
+  boolean getClimate(float *temperature, float *humidity);
+
 private:
   void _initialiseNetwork(byte *mac);
   void _initialiseMqtt(byte *mac);
   void _initialiseRestApi(void);
 
+  void _initialiseClimateSensor(void);
+  void _updateClimateSensor(void);
+
   boolean _isNetworkConnected(void);
+
+  uint32_t _lastClimateUpdate = 0L;
 };
 
 #endif

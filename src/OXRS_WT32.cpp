@@ -14,6 +14,8 @@
 #include <WiFiManager.h>  // For WiFi AP config
 #endif
 
+#include "SHT2x.h"        // For SHT20 Temp/RH sensor
+
 // Macro for converting env vars to strings
 #define STRINGIFY(s) STRINGIFY1(s)
 #define STRINGIFY1(s) #s
@@ -49,6 +51,22 @@ jsonCallback _onCommand;
 
 // local variables
 char _fwVersion[40] = "<No Version>";
+
+// SHT20 climate sensor
+SHT2x sht;
+
+// call back to update climate values on screen
+climateUpdateCallback _onClimateUpdate;
+
+// Climate update interval - extend or disable climate updates via
+// the MQTT config option "climateUpdateSeconds" - zero to disable
+uint32_t _climateUpdateMs = DEFAULT_CLIMATE_UPDATE_MS;
+
+bool _climateSensorFound = false;
+
+// most recent climate data
+double _temperature = NAN;
+double _humidity = NAN;
 
 /* JSON helpers */
 void _mergeJson(JsonVariant dst, JsonVariantConst src)
@@ -117,7 +135,7 @@ void _getNetworkJson(JsonVariant json)
 
 #if defined(ETH_MODE)
   Ethernet.MACAddress(mac);
-  
+
   network["mode"] = "ethernet";
   network["ip"] = Ethernet.localIP();
 #else
@@ -147,6 +165,17 @@ void _getConfigSchemaJson(JsonVariant json)
   if (!_fwConfigSchema.isNull())
   {
     _mergeJson(properties, _fwConfigSchema.as<JsonVariant>());
+  }
+
+  // SHT20 sensor config
+  if (_climateSensorFound)
+  {
+    JsonObject climateUpdateSeconds = properties.createNestedObject("climateUpdateSeconds");
+    climateUpdateSeconds["title"] = "Climate Update Interval (seconds)";
+    climateUpdateSeconds["description"] = "How often to read and report the value from the onboard SHT20 sensor (defaults to 60 seconds, setting to 0 disables climate reports). Must be a number between 0 and 86400 (i.e. 1 day).";
+    climateUpdateSeconds["type"] = "integer";
+    climateUpdateSeconds["minimum"] = 0;
+    climateUpdateSeconds["maximum"] = 86400;
   }
 }
 
@@ -238,6 +267,21 @@ void _mqttDisconnected(int state)
 
 void _mqttConfig(JsonVariant json)
 {
+  // SHT20 sensor config
+  if (json.containsKey("climateUpdateSeconds"))
+  {
+    _climateUpdateMs = json["climateUpdateSeconds"].as<uint32_t>() * 1000L;
+    if (_climateUpdateMs == 0)
+    {
+      _temperature = NAN;
+      _humidity = NAN;
+      if (_onClimateUpdate)
+      {
+        _onClimateUpdate();
+      }
+    }
+  }
+
   // Pass on to the firmware callback
   if (_onConfig)
   {
@@ -307,7 +351,7 @@ void OXRS_WT32::setMqttTopicSuffix(const char *suffix)
   _mqtt.setTopicSuffix(suffix);
 }
 
-void OXRS_WT32::begin(jsonCallback config, jsonCallback command)
+void OXRS_WT32::begin(jsonCallback config, jsonCallback command, climateUpdateCallback climateUpdate)
 {
   // Get our firmware details
   DynamicJsonDocument json(128);
@@ -331,6 +375,12 @@ void OXRS_WT32::begin(jsonCallback config, jsonCallback command)
 
   // Set up the REST API
   _initialiseRestApi();
+
+  // upstream callback
+  _onClimateUpdate = climateUpdate;
+
+  // Set up the climate sensor
+  _initialiseClimateSensor();
 }
 
 void OXRS_WT32::loop(void)
@@ -355,6 +405,9 @@ void OXRS_WT32::loop(void)
     _api.loop(&client);
 #endif
   }
+
+  // Check for climate update
+  _updateClimateSensor();
 }
 
 void OXRS_WT32::setConfigSchema(JsonVariant json)
@@ -369,12 +422,12 @@ void OXRS_WT32::setCommandSchema(JsonVariant json)
   _mergeJson(_fwCommandSchema.as<JsonVariant>(), json);
 }
 
-void OXRS_WT32::apiGet(const char * path, Router::Middleware * middleware)
+void OXRS_WT32::apiGet(const char *path, Router::Middleware *middleware)
 {
   _api.get(path, middleware);
 }
 
-void OXRS_WT32::apiPost(const char * path, Router::Middleware * middleware)
+void OXRS_WT32::apiPost(const char *path, Router::Middleware *middleware)
 {
   _api.post(path, middleware);
 }
@@ -382,7 +435,10 @@ void OXRS_WT32::apiPost(const char * path, Router::Middleware * middleware)
 boolean OXRS_WT32::publishStatus(JsonVariant json)
 {
   // Exit early if no network connection
-  if (!_isNetworkConnected()) { return false; }
+  if (!_isNetworkConnected())
+  {
+    return false;
+  }
 
   boolean success = _mqtt.publishStatus(json);
   return success;
@@ -391,7 +447,10 @@ boolean OXRS_WT32::publishStatus(JsonVariant json)
 boolean OXRS_WT32::publishTelemetry(JsonVariant json)
 {
   // Exit early if no network connection
-  if (!_isNetworkConnected()) { return false; }
+  if (!_isNetworkConnected())
+  {
+    return false;
+  }
 
   boolean success = _mqtt.publishTelemetry(json);
   return success;
@@ -403,7 +462,7 @@ size_t OXRS_WT32::write(uint8_t character)
   return _logger.write(character);
 }
 
-void OXRS_WT32::_initialiseNetwork(byte * mac)
+void OXRS_WT32::_initialiseNetwork(byte *mac)
 {
   // Get WiFi base MAC address
   WiFi.macAddress(mac);
@@ -437,21 +496,21 @@ void OXRS_WT32::_initialiseNetwork(byte * mac)
   // Connect ethernet and get an IP address via DHCP
   if (!Ethernet.begin(mac, DHCP_TIMEOUT_MS, DHCP_RESPONSE_TIMEOUT_MS))
   {
-    if (Ethernet.hardwareStatus() == EthernetNoHardware) 
+    if (Ethernet.hardwareStatus() == EthernetNoHardware)
     {
       _logger.println(F("[wt32] ethernet shield not found"));
-    } 
-    else if (Ethernet.linkStatus() == LinkOFF) 
+    }
+    else if (Ethernet.linkStatus() == LinkOFF)
     {
       _logger.println(F("[wt32] ethernet cable not connected"));
-    } 
-    else 
+    }
+    else
     {
       _logger.println(F("[wt32] failed to setup ethernet using DHCP"));
     }
     return;
   }
-  
+
   IPAddress ipAddress = Ethernet.localIP();
 #else
   _logger.print(F("[wt32] wifi mac address: "));
@@ -476,7 +535,7 @@ void OXRS_WT32::_initialiseNetwork(byte * mac)
     _logger.println(F("[wt32] failed to connect to wifi access point, rebooting"));
     ESP.restart();
   }
-  
+
   IPAddress ipAddress = WiFi.localIP();
 #endif
 
@@ -512,12 +571,75 @@ void OXRS_WT32::_initialiseRestApi(void)
 
   // Set up the REST API
   _api.begin();
-  
+
   // Register our callbacks
   _api.onAdopt(_apiAdopt);
-  
+
   // Start listening
   _server.begin();
+}
+
+void OXRS_WT32::_initialiseClimateSensor(void)
+{
+  // Initialise the onboard SHT20 climate sensor
+  sht.begin(I2C0_SDA, I2C0_SCL);
+  delay(10);
+
+  _climateSensorFound = sht.isConnected();
+
+  if (!_climateSensorFound)
+  {
+    _logger.println(F("[wt32] no SHT20 sensor found"));
+    return;
+  }
+
+  _lastClimateUpdate = -_climateUpdateMs;
+}
+
+// get values from climate sensor, store local, publish /tele
+void OXRS_WT32::_updateClimateSensor(void)
+{
+  // Ignore if climate sensor not found or has been disabled
+  if (!_climateSensorFound || _climateUpdateMs == 0)
+  {
+    return;
+  }
+
+  // Check if we need to get new readings and publish
+  if ((millis() - _lastClimateUpdate) > _climateUpdateMs)
+  {
+    // Read values from onboard sensor
+    sht.read();
+
+    int temperature = round(sht.getTemperature() * 10);
+    int humidity = round(sht.getHumidity() * 10);
+    _temperature = (double)temperature / 10.0;
+    _humidity = (double)humidity / 10.0;
+
+    // Publish climate to mqtt
+    StaticJsonDocument<64> json;
+    json["temperature"] = _temperature;
+    json["humidity"] = _humidity;
+    publishTelemetry(json.as<JsonVariant>());
+
+    // update screen
+    if (_onClimateUpdate)
+    {
+      _onClimateUpdate();
+    }
+
+    // Reset our timer
+    _lastClimateUpdate = millis();
+  }
+}
+
+// get climate sensor values
+bool OXRS_WT32::getClimate(float *temperature, float *humidity)
+{
+  *temperature = (float)_temperature;
+  *humidity = (float)_humidity;
+
+  return (isnan(_temperature) || isnan(_humidity)) == false;
 }
 
 boolean OXRS_WT32::_isNetworkConnected(void)
@@ -578,7 +700,7 @@ void OXRS_WT32::getMACAddressTxt(char *buffer)
 void OXRS_WT32::getMQTTTopicTxt(char *buffer)
 {
   char topic[64];
- 
+
   if (!_mqtt.connected())
   {
     sprintf(buffer, "-/------");
