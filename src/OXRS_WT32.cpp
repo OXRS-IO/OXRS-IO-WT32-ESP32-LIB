@@ -46,8 +46,8 @@ OXRS_API _api(_mqtt);
 MqttLogger _logger(_mqttClient, "log", MqttLoggerMode::MqttAndSerial);
 
 // Supported firmware config and command schemas
-DynamicJsonDocument _fwConfigSchema(JSON_CONFIG_MAX_SIZE);
-DynamicJsonDocument _fwCommandSchema(JSON_CONFIG_MAX_SIZE);
+JsonDocument _fwConfigSchema;
+JsonDocument _fwCommandSchema;
 
 // MQTT callbacks wrapped by _mqttConfig/_mqttCommand
 jsonCallback _onConfig;
@@ -98,7 +98,7 @@ void _mergeJson(JsonVariant dst, JsonVariantConst src)
 /* Adoption info builders */
 void _getFirmwareJson(JsonVariant json)
 {
-  JsonObject firmware = json.createNestedObject("firmware");
+  JsonObject firmware = json["firmware"].to<JsonObject>();
 
   firmware["name"] = FW_NAME;
   firmware["shortName"] = FW_SHORT_NAME;
@@ -114,7 +114,7 @@ void _getFirmwareJson(JsonVariant json)
 
 void _getSystemJson(JsonVariant json)
 {
-  JsonObject system = json.createNestedObject("system");
+  JsonObject system = json["system"].to<JsonObject>();
 
   system["heapUsedBytes"] = ESP.getHeapSize();
   system["heapFreeBytes"] = ESP.getFreeHeap();
@@ -133,7 +133,7 @@ void _getSystemJson(JsonVariant json)
 
 void _getNetworkJson(JsonVariant json)
 {
-  JsonObject network = json.createNestedObject("network");
+  JsonObject network = json["network"].to<JsonObject>();
 
   byte mac[6];
 
@@ -156,14 +156,14 @@ void _getNetworkJson(JsonVariant json)
 
 void _getConfigSchemaJson(JsonVariant json)
 {
-  JsonObject configSchema = json.createNestedObject("configSchema");
+  JsonObject configSchema = json["configSchema"].to<JsonObject>();
 
   // Config schema metadata
   configSchema["$schema"] = JSON_SCHEMA_VERSION;
   configSchema["title"] = FW_SHORT_NAME;
   configSchema["type"] = "object";
 
-  JsonObject properties = configSchema.createNestedObject("properties");
+  JsonObject properties = configSchema["properties"].to<JsonObject>();
 
   // Firmware config schema (if any)
   if (!_fwConfigSchema.isNull())
@@ -174,7 +174,7 @@ void _getConfigSchemaJson(JsonVariant json)
   // sensor config
 #if defined(CONFIG_IDF_TARGET_ESP32S3)
   {
-    JsonObject climateUpdateSeconds = properties.createNestedObject("climateUpdateSeconds");
+    JsonObject climateUpdateSeconds = properties["climateUpdateSeconds"].to<JsonObject>();
     climateUpdateSeconds["title"] = "Sensor Update Interval (seconds)";
     climateUpdateSeconds["description"] = "How often to read and report the value from connected sensors (ESP32 internal temperature, SHT20) (defaults to 60 seconds, setting to 0 disables climate reports). Must be a number between 0 and 86400 (i.e. 1 day).";
     climateUpdateSeconds["type"] = "integer";
@@ -186,14 +186,13 @@ void _getConfigSchemaJson(JsonVariant json)
 
 void _getCommandSchemaJson(JsonVariant json)
 {
-  JsonObject commandSchema = json.createNestedObject("commandSchema");
-
+  JsonObject commandSchema = json["commandSchema"].to<JsonObject>();
   // Command schema metadata
   commandSchema["$schema"] = JSON_SCHEMA_VERSION;
   commandSchema["title"] = FW_SHORT_NAME;
   commandSchema["type"] = "object";
 
-  JsonObject properties = commandSchema.createNestedObject("properties");
+  JsonObject properties = commandSchema["properties"].to<JsonObject>();
 
   // Firmware command schema (if any)
   if (!_fwCommandSchema.isNull())
@@ -202,7 +201,7 @@ void _getCommandSchemaJson(JsonVariant json)
   }
 
   // Restart command
-  JsonObject restart = properties.createNestedObject("restart");
+  JsonObject restart = properties["restart"].to<JsonObject>();
   restart["title"] = "Restart";
   restart["type"] = "boolean";
 }
@@ -227,7 +226,7 @@ void _mqttConnected()
   _logger.setTopic(_mqtt.getLogTopic(logTopic));
 
   // Publish device adoption info
-  DynamicJsonDocument json(JSON_ADOPT_MAX_SIZE);
+  JsonDocument json;
   _mqtt.publishAdopt(_api.getAdopt(json.as<JsonVariant>()));
 
   // Log the fact we are now connected
@@ -359,7 +358,7 @@ void OXRS_WT32::setMqttTopicSuffix(const char *suffix)
 void OXRS_WT32::begin(jsonCallback config, jsonCallback command, climateUpdateCallback climateUpdate)
 {
   // Get our firmware details
-  DynamicJsonDocument json(128);
+  JsonDocument json;
   _getFirmwareJson(json.as<JsonVariant>());
 
   // Log firmware details
@@ -621,7 +620,7 @@ void OXRS_WT32::_updateClimateSensor(void)
   if ((millis() - _lastClimateUpdate) > _climateUpdateMs)
   {
     float tempESP;
-    StaticJsonDocument<128> json;
+    JsonDocument json;
 
 #if defined(CONFIG_IDF_TARGET_ESP32S3)
     // read temperature from ESP chip
