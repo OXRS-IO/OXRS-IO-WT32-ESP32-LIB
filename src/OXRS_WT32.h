@@ -78,8 +78,6 @@ private:
   void _initialiseClimateSensor(void);
   void _updateClimateSensor(void);
 
-  void _initialiseESP32TempSensor(void);
-
   boolean _isNetworkConnected(void);
 
   uint32_t _lastClimateUpdate = 0L;

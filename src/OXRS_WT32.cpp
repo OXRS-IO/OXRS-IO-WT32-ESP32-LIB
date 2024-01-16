@@ -66,7 +66,7 @@ climateUpdateCallback _onClimateUpdate;
 // the MQTT config option "climateUpdateSeconds" - zero to disable
 uint32_t _climateUpdateMs = DEFAULT_CLIMATE_UPDATE_MS;
 
-bool _climateSensorFound = false;
+bool _sht20Found = false;
 
 // most recent climate data
 double _temperature = NAN;
@@ -172,7 +172,7 @@ void _getConfigSchemaJson(JsonVariant json)
   }
 
   // sensor config
- #if defined(CONFIG_IDF_TARGET_ESP32S3)
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
   {
     JsonObject climateUpdateSeconds = properties.createNestedObject("climateUpdateSeconds");
     climateUpdateSeconds["title"] = "Sensor Update Interval (seconds)";
@@ -384,11 +384,8 @@ void OXRS_WT32::begin(jsonCallback config, jsonCallback command, climateUpdateCa
   // upstream callback
   _onClimateUpdate = climateUpdate;
 
-  // Set up the climate sensor
+  // Set up the climate sensor(s)
   _initialiseClimateSensor();
-
-  // Set up the ESP32 internal sensor
-  _initialiseESP32TempSensor();
 }
 
 void OXRS_WT32::loop(void)
@@ -587,28 +584,26 @@ void OXRS_WT32::_initialiseRestApi(void)
   _server.begin();
 }
 
-void OXRS_WT32::_initialiseESP32TempSensor(void)
-{
-  #if defined(CONFIG_IDF_TARGET_ESP32S3)
-  temp_sensor_config_t temp_sensor = TSENS_CONFIG_DEFAULT();
-  temp_sensor_set_config(temp_sensor);
-  temp_sensor_start();
-  #endif
-}
-
 void OXRS_WT32::_initialiseClimateSensor(void)
 {
   // Initialise the onboard SHT20 climate sensor
   sht.begin(I2C0_SDA, I2C0_SCL);
   delay(10);
 
-  _climateSensorFound = sht.isConnected();
+  _sht20Found = sht.isConnected();
 
-  if (!_climateSensorFound)
+  if (!_sht20Found)
   {
     _logger.println(F("[wt32] no SHT20 sensor found"));
     return;
   }
+
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+  // Initialize ESP32S3 builtin temperature sensor
+  temp_sensor_config_t temp_sensor = TSENS_CONFIG_DEFAULT();
+  temp_sensor_set_config(temp_sensor);
+  temp_sensor_start();
+#endif
 
   _lastClimateUpdate = -_climateUpdateMs;
 }
@@ -628,13 +623,13 @@ void OXRS_WT32::_updateClimateSensor(void)
     float tempESP;
     StaticJsonDocument<128> json;
 
-    #if defined(CONFIG_IDF_TARGET_ESP32S3)
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
     // read temperature from ESP chip
     temp_sensor_read_celsius(&tempESP);
     json["esp32Temp"] = round(tempESP);
-    #endif
+#endif
 
-    if (_climateSensorFound)
+    if (_sht20Found)
     {
       // Read values from onboard sensor
       sht.read();
@@ -654,8 +649,11 @@ void OXRS_WT32::_updateClimateSensor(void)
       }
     }
 
-    // Publish climate to mqtt
-    publishTelemetry(json.as<JsonVariant>());
+    // Publish climate to mqtt if there is something to show
+    if (!json.isNull())
+    {
+      publishTelemetry(json.as<JsonVariant>());
+    }
 
     // Reset our timer
     _lastClimateUpdate = millis();
