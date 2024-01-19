@@ -172,7 +172,13 @@ void _getConfigSchemaJson(JsonVariant json)
   }
 
   // sensor config only if ESP is S3 or SHT20 found
-  if (strcmp(ESP.getChipModel(), "ESP32-S3") == 0 || _sht20Found)
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+  bool _s3Detected = true;
+#else
+  bool _s3Detected = false;
+#endif
+
+  if (_s3Detected || _sht20Found)
   {
     JsonObject climateUpdateSeconds = properties.createNestedObject("climateUpdateSeconds");
     climateUpdateSeconds["title"] = "Sensor Update Interval (seconds)";
