@@ -16,6 +16,10 @@
 
 #include "SHT2x.h"        // For SHT20 Temp/RH sensor
 
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+#include "driver/temp_sensor.h"   // For ESP32S3 internal temp sensor
+#endif
+
 // Macro for converting env vars to strings
 #define STRINGIFY(s) STRINGIFY1(s)
 #define STRINGIFY1(s) #s
@@ -62,7 +66,7 @@ climateUpdateCallback _onClimateUpdate;
 // the MQTT config option "climateUpdateSeconds" - zero to disable
 uint32_t _climateUpdateMs = DEFAULT_CLIMATE_UPDATE_MS;
 
-bool _climateSensorFound = false;
+bool _sht20Found = false;
 
 // most recent climate data
 double _temperature = NAN;
@@ -167,12 +171,18 @@ void _getConfigSchemaJson(JsonVariant json)
     _mergeJson(properties, _fwConfigSchema.as<JsonVariant>());
   }
 
-  // SHT20 sensor config
-  if (_climateSensorFound)
+  // sensor config only if ESP is S3 or SHT20 found
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+  bool _s3Detected = true;
+#else
+  bool _s3Detected = false;
+#endif
+
+  if (_s3Detected || _sht20Found)
   {
     JsonObject climateUpdateSeconds = properties.createNestedObject("climateUpdateSeconds");
-    climateUpdateSeconds["title"] = "Climate Update Interval (seconds)";
-    climateUpdateSeconds["description"] = "How often to read and report the value from the onboard SHT20 sensor (defaults to 60 seconds, setting to 0 disables climate reports). Must be a number between 0 and 86400 (i.e. 1 day).";
+    climateUpdateSeconds["title"] = "Sensor Update Interval (seconds)";
+    climateUpdateSeconds["description"] = "How often to read and report the value from connected sensors (ESP32 internal temperature, SHT20) (defaults to 60 seconds, setting to 0 disables climate reports). Must be a number between 0 and 86400 (i.e. 1 day).";
     climateUpdateSeconds["type"] = "integer";
     climateUpdateSeconds["minimum"] = 0;
     climateUpdateSeconds["maximum"] = 86400;
@@ -379,7 +389,7 @@ void OXRS_WT32::begin(jsonCallback config, jsonCallback command, climateUpdateCa
   // upstream callback
   _onClimateUpdate = climateUpdate;
 
-  // Set up the climate sensor
+  // Set up the climate sensor(s)
   _initialiseClimateSensor();
 }
 
@@ -585,13 +595,20 @@ void OXRS_WT32::_initialiseClimateSensor(void)
   sht.begin(I2C0_SDA, I2C0_SCL);
   delay(10);
 
-  _climateSensorFound = sht.isConnected();
+  _sht20Found = sht.isConnected();
 
-  if (!_climateSensorFound)
+  if (!_sht20Found)
   {
     _logger.println(F("[wt32] no SHT20 sensor found"));
     return;
   }
+
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+  // Initialize ESP32S3 builtin temperature sensor
+  temp_sensor_config_t temp_sensor = TSENS_CONFIG_DEFAULT();
+  temp_sensor_set_config(temp_sensor);
+  temp_sensor_start();
+#endif
 
   _lastClimateUpdate = -_climateUpdateMs;
 }
@@ -599,8 +616,8 @@ void OXRS_WT32::_initialiseClimateSensor(void)
 // get values from climate sensor, store local, publish /tele
 void OXRS_WT32::_updateClimateSensor(void)
 {
-  // Ignore if climate sensor not found or has been disabled
-  if (!_climateSensorFound || _climateUpdateMs == 0)
+  // Ignore if disabled
+  if (_climateUpdateMs == 0)
   {
     return;
   }
@@ -608,24 +625,39 @@ void OXRS_WT32::_updateClimateSensor(void)
   // Check if we need to get new readings and publish
   if ((millis() - _lastClimateUpdate) > _climateUpdateMs)
   {
-    // Read values from onboard sensor
-    sht.read();
+    float tempESP;
+    StaticJsonDocument<128> json;
 
-    int temperature = round(sht.getTemperature() * 10);
-    int humidity = round(sht.getHumidity() * 10);
-    _temperature = (double)temperature / 10.0;
-    _humidity = (double)humidity / 10.0;
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+    // read temperature from ESP chip
+    temp_sensor_read_celsius(&tempESP);
+    json["esp32Temp"] = round(tempESP);
+#endif
 
-    // Publish climate to mqtt
-    StaticJsonDocument<64> json;
-    json["temperature"] = _temperature;
-    json["humidity"] = _humidity;
-    publishTelemetry(json.as<JsonVariant>());
-
-    // update screen
-    if (_onClimateUpdate)
+    if (_sht20Found)
     {
-      _onClimateUpdate();
+      // Read values from onboard sensor
+      sht.read();
+
+      int temperature = round(sht.getTemperature() * 10);
+      int humidity = round(sht.getHumidity() * 10);
+      _temperature = (double)temperature / 10.0;
+      _humidity = (double)humidity / 10.0;
+
+      json["temperature"] = _temperature;
+      json["humidity"] = _humidity;
+
+      // update screen
+      if (_onClimateUpdate)
+      {
+        _onClimateUpdate();
+      }
+    }
+
+    // Publish climate to mqtt if there is something to show
+    if (!json.isNull())
+    {
+      publishTelemetry(json.as<JsonVariant>());
     }
 
     // Reset our timer
