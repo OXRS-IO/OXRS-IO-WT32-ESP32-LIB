@@ -171,8 +171,8 @@ void _getConfigSchemaJson(JsonVariant json)
     _mergeJson(properties, _fwConfigSchema.as<JsonVariant>());
   }
 
-  // sensor config
-#if defined(CONFIG_IDF_TARGET_ESP32S3)
+  // sensor config only if ESP is S3 or SHT20 found
+  if (strcmp(ESP.getChipModel(), "ESP32-S3") == 0 || _sht20Found)
   {
     JsonObject climateUpdateSeconds = properties.createNestedObject("climateUpdateSeconds");
     climateUpdateSeconds["title"] = "Sensor Update Interval (seconds)";
@@ -181,7 +181,6 @@ void _getConfigSchemaJson(JsonVariant json)
     climateUpdateSeconds["minimum"] = 0;
     climateUpdateSeconds["maximum"] = 86400;
   }
-#endif
 }
 
 void _getCommandSchemaJson(JsonVariant json)
