@@ -599,7 +599,6 @@ void OXRS_WT32::_initialiseClimateSensor(void)
   if (!_sht20Found)
   {
     _logger.println(F("[wt32] no SHT20 sensor found"));
-    return;
   }
 
 #if defined(CONFIG_IDF_TARGET_ESP32S3)
