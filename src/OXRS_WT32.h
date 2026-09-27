@@ -18,7 +18,7 @@
 // REST API
 #define REST_API_PORT               80
 
-// Climate sensor update internal
+// Telemetry update interval
 #define DEFAULT_TELE_UPDATE_MS      60000L
 
 // Enum for the different connection states

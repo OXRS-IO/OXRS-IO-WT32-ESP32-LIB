@@ -63,8 +63,8 @@ SHT2x sht;
 // call back to update climate values on screen
 climateUpdateCallback _onClimateUpdate;
 
-// Climate update interval - extend or disable climate updates via
-// the MQTT config option "teleUpdateSeconds" - zero to disable
+// Telemetry update interval - extend or disable via the MQTT config
+// option "teleUpdateSeconds" - zero to disable
 uint32_t _teleUpdateMs = DEFAULT_TELE_UPDATE_MS;
 
 bool _sht20Found = false;
@@ -277,7 +277,8 @@ void _mqttDisconnected(int state)
 
 void _mqttConfig(JsonVariant json)
 {
-  // SHT20 sensor config
+  // Telemetry update interval (device health always, climate sensor
+  // readings too if present)
   if (json.containsKey("teleUpdateSeconds"))
   {
     _teleUpdateMs = json["teleUpdateSeconds"].as<uint32_t>() * 1000L;
@@ -416,7 +417,7 @@ void OXRS_WT32::loop(void)
 #endif
   }
 
-  // Check for climate update
+  // Check for telemetry update
   _updateTelemetry();
 }
 
@@ -663,7 +664,7 @@ void OXRS_WT32::_updateTelemetry(void)
 #endif
 
 
-    // Publish climate to mqtt if there is something to show
+    // Publish telemetry if there is something to show
     if (!json.isNull())
     {
       publishTelemetry(json.as<JsonVariant>());
