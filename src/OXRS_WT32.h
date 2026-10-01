@@ -18,8 +18,8 @@
 // REST API
 #define REST_API_PORT               80
 
-// Climate sensor update internal
-#define DEFAULT_CLIMATE_UPDATE_MS   60000L
+// Telemetry update interval
+#define DEFAULT_TELE_UPDATE_MS      60000L
 
 // Enum for the different connection states
 enum connectionState_t { CONNECTED_NONE, CONNECTED_IP, CONNECTED_MQTT };
@@ -76,11 +76,11 @@ private:
   void _initialiseRestApi(void);
 
   void _initialiseClimateSensor(void);
-  void _updateClimateSensor(void);
-
+  void _updateTelemetry(void);
+  
   boolean _isNetworkConnected(void);
 
-  uint32_t _lastClimateUpdate = 0L;
+  uint32_t _lastTeleUpdate = 0L;
 };
 
 #endif
